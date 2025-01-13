@@ -205,7 +205,25 @@ func (s *session) executeInc(ctx context.Context, sql string) (recordSets []sqle
 
 			s1 = strings.TrimRight(s1, ";")
 
-			stmtNodes, err := s.ParseSQL(ctx, s1, charsetInfo, collation)
+			s1_without_hint := ""
+			if strings.Contains(sql_line, "/*+") {
+				// 创建正则表达式，匹配以 /*+ 开头的hint信息
+				re := regexp.MustCompile(`/\*\+.*?\*/`)
+				// 使用正则表达式替换掉hint
+				s1_without_hint = re.ReplaceAllString(s1, "")
+			}
+			s1_to_parse := ""
+			if s1_without_hint != "" {
+				s1_to_parse = s1_without_hint
+			} else {
+				s1_to_parse = s1
+			}
+			stmtNodes, err := s.ParseSQL(ctx, s1_to_parse, charsetInfo, collation)
+			if s1_without_hint != "" {
+				// 因为接下来还要执行，还将原始的SQL赋值给解析结果
+				// 实际上在解析SQL时是见到一个分号就解析一句，所以stmtNodes只有一个元素，取第一个替换为原始SQL
+				stmtNodes[0].SetText(s1)
+			}
 
 			if err == nil && len(stmtNodes) == 0 {
 				tmpSQL := strings.TrimSpace(s1)
